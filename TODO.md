@@ -1,0 +1,8 @@
+- combas específicos (no robot.h)
+- gesonel esperando o range certo
+- outros protocolos (id != 0 no comba)
+    - setar intervalo dinamicamente
+    - mensagem binária
+    - avisar mixagem no robô
+- adaptador de controle ppm
+- relay serial usando também saída do esp do luis no rádio
