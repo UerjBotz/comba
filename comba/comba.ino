@@ -1,13 +1,14 @@
 #define COMBA
 
 #include <Arduino.h>
-#include "../comms.h"
+#include "comms.h"
+#define VEL_MAX 127
 #define LED D4
 #define motor_esq_m1 D5
 #define motor_esq_m2 D6
 #define motor_dir_m1 D7
 #define motor_dir_m2 D8
-#include "../robot.h"
+#include "robot.h"
 
 #define BAUD_RATE 115200
 #define IDX_VEL 0
@@ -41,12 +42,15 @@ union vels str_to_vels(char *const text, uint8_t len) {
 }
 
 union vels vels{0};
+unsigned long t_recv = 0;
 void on_recv(const uint8_t* mac, const uint8_t* data, int len) {
     Packet* msg = (Packet*) (void*)data;
+    if (msg->id != 0) return; //!
+
+    if (!memeql(mac, controle, sizeof(controle))) return;
+
+    t_recv = millis();
     vels = str_to_vels(msg->vels, msg->len);
-    
-    //! print
-    // Serial.printf("Received %d bytes: msg type %d\n", msg->len, msg->id);
 }
 
 void setup() {
@@ -63,19 +67,21 @@ void setup() {
 }
 
 void loop() {
-    static struct vel vel_rodas, vel_esc;
-    vel_rodas = vels.of[IDX_VEL];
-    vel_esc   = vels.of[IDX_ESC];
+    struct vel vel_rodas{0}, vel_esc{0}, extra{0};
+    if ((millis() - t_recv) < 1000) {
+        vel_rodas = vels.of[IDX_VEL];
+        vel_esc   = vels.of[IDX_ESC];
+        extra     = vels.of[2]; //! mágico
+    }
 
     move(vel_rodas.esq, vel_rodas.dir);
     hite(vel_esc.esq);
     
     //! print
     Serial.printf("vels %d %d, esc %d %d, não usado %d %d\n",
-                  vels.of[0].esq, vels.of[0].dir,
-                  vels.of[1].esq, vels.of[1].dir,
-                  vels.of[2].esq, vels.of[2].dir);
-    Serial.println();
+                  vel_rodas.esq, vel_rodas.dir,
+                  vel_esc.esq, vel_esc.dir,
+                  extra.esq, extra.dir);
 
     yield();
 }

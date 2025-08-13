@@ -1,14 +1,4 @@
-if defined(VEL_MAX)
-    #if   VEL_MAX <= INT8_MAX
-        typedef int8_t vel_t;
-    #elif VEL_MAX <= INT16_MAX
-        typedef int16_t vel_t;
-    #else
-        #error "constante VEL_MAX precisa ter um valor são"
-    #endif
-#else
-    #error "constante MEL_MAX precisa estar definida"
-#endif
+typedef int16_t vel_t;
 
 void     robot_setup(void);
 void     move(vel_t, vel_t); //-VEL_MAX a VEL_MAX
@@ -16,9 +6,16 @@ void     hite(vel_t);        //-VEL_MAX a VEL_MAX
 void     bipe(int);          //millis
 uint32_t batt(void);         //mV
 
+#if !defined(VEL_MAX)
+    #error "constante VEL_MAX precisa estar definida"
+#endif
+#if VEL_MAX > INT16_MAX
+    #error "constante VEL_MAX precisa ter um valor são"
+#endif
+
 #if defined(VESPA)
     #include <RoboCore_Vespa.h>
-  
+
     VespaLED     led;
     VespaButton  button;
     VespaBattery vbat;
@@ -69,14 +66,22 @@ uint32_t batt(void);         //mV
         }
     }
     void move(vel_t esq, vel_t dir) {
-        esq = map(esq, -VEL_MAX, VEL_MAX, -1023, 1023);
-        dir = map(dir, -VEL_MAX, VEL_MAX, -1023, 1023);
+        esq = constrain(
+            map(esq, -VEL_MAX, VEL_MAX, -1023, 1023),
+            -1023, 1024
+        );
+        dir = constrain(
+            map(dir, -VEL_MAX, VEL_MAX, -1023, 1023),
+            -1023, 1023
+        );
+
         motor(motor_esq_m1, motor_esq_m2, esq);
         motor(motor_dir_m1, motor_dir_m2, dir);
     }
 
     void hite(vel_t vel) {
       #ifdef ESC
+        #warning "esc provavelmente não funciona!"
         analogWrite(ESC, map(vel, -VEL_MAX, VEL_MAX, -1023, 1023));
       #endif
     }

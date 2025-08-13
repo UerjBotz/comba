@@ -8,11 +8,13 @@
 #define ADC_MAX ((1<<12)-1)
 
 //#define PWM_MAX ((1<<10)-1)
-#define PWM_MAX 100
+#define PWM_MAX 127
 
 #define EIXO_X 2
 #define EIXO_Y 1
 #define BOTAO  9
+
+#define PEER_ADDR gesonel
 
 struct par {
     union {
@@ -21,7 +23,15 @@ struct par {
     };
 };
 
-uint8_t peer_addr[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+volatile bool inverter = false;
+volatile unsigned long ultimo_clique = 0;
+void IRAM_ATTR ao_apertar(void) {
+    unsigned long t = millis();
+    if ((t - ultimo_clique) > 1000) {
+        inverter ^= 1;
+        ultimo_clique = t;
+    }
+}
 
 void setup() {
     pinMode(EIXO_X, INPUT);
@@ -40,10 +50,12 @@ void setup() {
         .channel = 0,
         .encrypt = false,
     };
-    memcpy(peer.peer_addr, peer_addr, sizeof(peer_addr));
+    memcpy(peer.peer_addr, PEER_ADDR, sizeof(PEER_ADDR));
     
     esp_err_t err = esp_now_add_peer(&peer);
     assert (err == ESP_OK);
+
+    attachInterrupt(digitalPinToInterrupt(BOTAO), ao_apertar, HIGH);
 }
 
 
@@ -54,7 +66,7 @@ void loop() {
         *buf = (char) Serial.read();
         if (*buf == sentinel) {
             *buf = '\0';
-            esp_err_t err = send_str(peer_addr, input);
+            esp_err_t err = send_str(PEER_ADDR, input);
             
             //! print
             Serial.printf("%s ", input); 
@@ -63,6 +75,7 @@ void loop() {
         }
     }
 
+    //bool inverter = !digitalRead(BOTAO);
 
     struct par pos = {
         .x = analogRead(EIXO_X),
@@ -73,14 +86,15 @@ void loop() {
         .x = adc_to_pwm(pos_norm.x),
         .y = adc_to_pwm(pos_norm.y),
     };
+    if (inverter) {
+        pos_pwm.x = pos_pwm.x;
+        pos_pwm.y = -pos_pwm.y;
+    }
     struct par vel = mixar(pos_pwm.x, pos_pwm.y);
-
-    bool botao = !digitalRead(BOTAO);
-    if (botao) vel = {0};
 
     char vels[255];
     sprintf(vels, "%d %d\n", vel.x, vel.y);
-    esp_err_t err = send_str(peer_addr, vels);
+    esp_err_t err = send_str(PEER_ADDR, vels);
 
     Serial.printf("%5d,%5d: ", pos.x, pos.y);
     Serial.printf("%5d,%5d: ", pos_norm.x, pos_norm.y);
